@@ -1,0 +1,164 @@
+---
+title: "Harvard_Prof_Graphic"
+author: "Tate Green"
+date: "4/8/2019"
+output: html_document
+---
+
+```{r setup, echo = FALSE, message=FALSE}
+## All the code on this is from Problem set 5 
+knitr::opts_chunk$set(echo = FALSE)
+library(readxl)
+library(janitor)
+library(fs)
+library(gt)
+library(tidyverse)
+library(stringr)
+```
+
+```{r make_chart, results='asis', message = FALSE, warning=FALSE}
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/weball06.zip",
+              destfile = "weball06.zip",
+              mode = "wb")
+## Here we download the data automately because of its large size they can  
+## sometimes be rejected by GitHub
+all_candidates <- read_delim("weball06.zip", delim = "|", col_names = FALSE)%>%
+transmute(cand_id = X1, cand_name = X2, party = X5, cash = X11, cand_state = X19)%>%
+  mutate(cand_name = str_to_title(cand_name))%>%
+  separate(cand_name, into = c("last_name", "first_name"), sep = ",")%>%
+  mutate(last_name = str_trim(last_name))%>%
+    mutate(first_name = str_trim(first_name))%>%
+ mutate(full_name = paste(first_name, last_name )) 
+## We use the mutate, str_to_title, str_trim, paste and separate functions in order ## to seperate the first name and the last name in order to flip them so that the ## first name is first and the last name is second and then paste them together as ## "full_name."  We also use these functions to get rid of the commas and to also ## format them so that the right letters are capitalized and the wrong ones are no ## longer capatilized.  
+file_delete("weball06.zip")
+## We then file delete in order to make everything run faster becasue the data set ## we are dealing with are so big
+```
+```{r}
+all_candidates%>%
+  mutate(party = fct_collapse(party,
+                                   "Republican" = c("Rep", "REP"),
+                             "Democrat" = c("DEM", "DFL"),
+                             "Independent" = c("IND"),
+                             "Other" = c("OTH"),
+                             "Libretarian" = c("LIB"))) %>%
+  ## Here we use the fct_collapse function to regroup and label our parties so thar ## the Republican party encompasses those who responded "Rep" and "REP" since they ## mean the same thing.  We also do this with Democrat making sure people who
+ ## responded "DEM" or "DFL" are categorized as "Democrat".  Then we also use it 
+  ## to rename Independent, Other and Libretarian. 
+  group_by(party)%>%
+summarize(total_cash = sum(cash)) %>%
+  arrange(desc(total_cash)) %>%
+  head(5) %>%
+  ## We use the head argument to only get the top 5 parties choices
+  ## we use the summarize function in order to create a total cash variable with 
+  ## the sum of all of the cash
+  gt() %>%
+  tab_header(title = "Largest Cash Holdings",
+             subtitle = "5 parties with the largest aggregate cash holdings at the end of period") %>%
+  tab_source_note("Source: Federal Election Commission Campaign Finance Data")%>%
+  cols_label(party = "Party",
+             total_cash = "Cash Holdings") %>%
+  fmt_currency(columns = vars(total_cash))
+## We use the gt function in order to easily label our data set with a title,
+## subtitle, source and also relabel the columns.  We also use the fmt_currency 
+## function to add the dollar sign into the table. 
+``` 
+
+```{r, message = FALSE, warning=FALSE}
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/cm06.zip",
+              destfile = "cm06.zip",
+              mode = "wb")
+## Here we download the data automately because of its large size they can  
+## sometimes be rejected by GitHub
+com <- read_delim("cm06.zip", delim = "|", col_names = FALSE)%>%
+  transmute(cand_id = X15, cmte_id = X1, cmte_party = X11)%>%
+  mutate(cmte_party = case_when(cmte_party %in% c("rep", "Rep", "REP") ~ "Republican", cmte_party %in% c("dem", "Dem", "DEM") ~ "Democrat", TRUE ~ "Other"))
+## We uae the transmute function in order to link different names with different ##parts of the data set which we want.  We use the mutate and case_when functions ##to split the parties into three different groups: Democrats, Republicans and ##Other which is everyone else.  We use the function to make sure anyone who ##responded "dem", "Dem" or "DEM" are all grouped under Democrat and similarly ##"rep", "Rep" and "REP" are all under Republican and then everything else is ##categorized as Other in our table.  
+file_delete("cm06.zip")
+## We then file delete in order to make everything run faster becasue the data set ## we are dealing with are so big
+com%>%
+group_by(cmte_party)%>%
+  summarize(
+    total_cmte = n_distinct(cmte_id),
+    total_cand = n_distinct(cand_id)
+    ## We use the n_distinct function to find all of the unique parts within 
+    ## commmittee id and candidate id and use the summarize function in order to  ## create the total unique variables within committee and candidate.
+  )%>%
+  gt%>%
+  tab_header(title = "Party Affiliation Data",
+             subtitle = "Number of Unique Candidate and Committee IDs by Party") %>%
+  tab_source_note("Source: Federal Election Commission Campaign Finance Data")%>%
+  cols_label(cmte_party = "Party",
+             total_cmte = "Committee",
+             total_cand = "Candidate")
+  ## We use the gt function in order to easily label our table in a way that is 
+## clear and presentable
+```
+```{r, cache= TRUE, message = FALSE, warning=FALSE}
+download.file(url = "https://www.fec.gov/files/bulk-downloads/2006/indiv06.zip",
+              destfile = "indiv06.zip",
+              mode = "wb")
+## Here we download the data automately because of its large size they can  
+## sometimes be rejected by GitHub
+individual <- read_delim("indiv06.zip", delim = "|", col_names = FALSE, escape_double = FALSE, guess_max = 1000, col_types = cols_only(X14 = "?", X15 = "?", X12 = "?", X13 = "?", X1 = "?"))%>%
+  transmute(date = X14, amount = X15, employer = X12, occupation = X13, cmte_id = X1)
+## We uae the transmute function in order to link different names with different ##parts of the data set which we want.  Within the read_delim we use a variety of ## functions in order to make the large data set more managable and easier to run ## and navigate.
+file_delete("indiv06.zip")
+## We then file delete in order to make everything run faster becasue the data set ## we are dealing with are so big
+```
+
+```{r, message = FALSE, warning=FALSE}
+  join1 <- left_join(individual, com, by = "cmte_id")
+join2 <- left_join(join1, all_candidates, by = "cand_id") 
+## we use the left_join function in order to combined our two of our data sets into ## one and then add that data set to the third combinding all three. 
+join2 %>%
+  filter(employer == "HARVARD UNIVERSITY") %>%
+  ## Here we filter in order to only show those employed by Harvard University
+  filter(!is.na(party)) %>%
+  filter(amount > 0) %>%
+  ## We use filter here to get rid of any NA s within the party category and to 
+  ## only look at those who donated so greater than 0 dollars
+  filter(str_detect(occupation, pattern = "PROFESSOR"))%>% 
+  ## we use the str_detect function in order to pick out which occupations include ## the word professor 
+select(date, party, amount)%>%
+   mutate(party = fct_collapse(party,
+                                   "Republican" = c("rep", "Rep", "REP"), 
+                                   "Democrat" = c("dem", "Dem", "DEM")))%>%
+  mutate(party = fct_lump(party, n = 2, other_level = "Other"))%>%
+##We use fct_collapse again to split the parties into three different groups: ##Democrats, Republicans and Other which is everyone else.  We use the function to ##make sure anyone who responded "dem", "Dem" or "DEM" are all grouped under ##Democrat and similarly "rep", "Rep" and "REP" are all under Republican and then ##everything else is ##categorized as Other in our table.  
+  mutate(date = parse_date(date, format = "%m %d %Y"))%>%
+  mutate(date = cut(date, breaks = "quarters"))%>%
+group_by(date, party)%>%
+summarize(total_donations = sum(amount > 0 )) %>%
+spread(party, total_donations, fill = 0)%>%
+  ungroup()%>%
+  ## In order to split the dates up by quarter and then have them labeled nicely we ## use the mutate, parse_date, cut and group_by functions.
+  gt%>%
+  tab_header(title = "Harvard Professor's Political Donations",
+             subtitle = "Broken Up quarterly and by Party") %>%
+  tab_source_note("Source: Federal Election Commission Campaign Finance Data")%>%
+  cols_label(date = "Quarters")
+ ## We use the gt function in order to easily label our table in a way that is 
+## clear and presentable
+
+```
+
+```{r, message = FALSE, warning=FALSE}
+write_rds(join2 %>% filter(employer == "HARVARD UNIVERSITY") %>% select(date, party, amount), "joined_data.rds")
+
+```
+```{r}
+final <- read_rds("joined_data.rds")
+final %>%
+  mutate(party = case_when(party %in% c("REP") ~ "Republican", party %in% c("DEM") ~ "Democrat", TRUE ~ "Other"))%>%
+  mutate(date = parse_date(date, format = "%m %d %Y"))%>%
+  mutate(date = cut(date, breaks = "quarters"))%>%
+  ggplot(aes(x = date, y = amount, color = party, size = amount))+
+    geom_point(show.legend = FALSE, alpha = .4)+
+  labs(title = "Harvard Professor's Political Donations",
+             subtitle = "Similar Donations Over Time",
+       caption = "Source: Federal Election Commission Campaign Finance Data")+
+  ylab("Amount Donated")+
+  xlab("Date of Donation")
+## We take our data set from the previous r markdown and use the read_rds function ## in order to read it into the new r markdown.  Then we mutate the data into ##different parties and mutate the dates in order to make them look better. Use Labs ##function and the XLab and YLab function in order to better label our data so you ##know what the graph is portraying.  Shown is the amount donated by harvard ##professors over time and broken into politival party by color through a dot plot ##with the dates on the X and the amount on the Y. 
+```
+
